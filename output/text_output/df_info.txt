@@ -1,0 +1,39 @@
+<class 'pandas.core.frame.DataFrame'>
+DatetimeIndex: 196776 entries, 2017-01-01 00:00:00 to 2022-08-31 17:45:00
+Data columns (total 14 columns):
+ #   Column                  Non-Null Count   Dtype  
+---  ------                  --------------   -----  
+ 0   Energy delta[Wh]        196776 non-null  int64  
+ 1   GHI                     196776 non-null  float64
+ 2   temp                    196776 non-null  float64
+ 3   pressure                196776 non-null  int64  
+ 4   humidity                196776 non-null  int64  
+ 5   wind_speed              196776 non-null  float64
+ 6   rain_1h                 196776 non-null  float64
+ 7   snow_1h                 196776 non-null  float64
+ 8   clouds_all              196776 non-null  int64  
+ 9   isSun                   196776 non-null  int64  
+ 10  sunlightTime            196776 non-null  int64  
+ 11  dayLength               196776 non-null  int64  
+ 12  SunlightTime/daylength  196776 non-null  float64
+ 13  weather_type            196776 non-null  int64  
+dtypes: float64(6), int64(8)
+memory usage: 22.5 MB
+amount of rows and columns: (196776, 14)
+amount of null cells:
+Energy delta[Wh]          0
+GHI                       0
+temp                      0
+pressure                  0
+humidity                  0
+wind_speed                0
+rain_1h                   0
+snow_1h                   0
+clouds_all                0
+isSun                     0
+sunlightTime              0
+dayLength                 0
+SunlightTime/daylength    0
+weather_type              0
+dtype: int64
+amount of duplicated values: 69288

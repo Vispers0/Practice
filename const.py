@@ -1,4 +1,5 @@
-PATH = './output/'
+PATH_TXT = './output/text_output/'
+PATH_IMG = './output/image_output/'
 DF = 'dataframe.txt'
 INFO = 'df_info.txt'
 DESC = 'df_desc.txt'

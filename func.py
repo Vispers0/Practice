@@ -1,11 +1,15 @@
 import pandas as pd
 import numpy as np
-import scipy.stats as stats
 import datetime as dt
 
-import plotly.graph_objects as go
 import plotly.express as px
 import plotly.figure_factory as ff
+
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.model_selection import train_test_split
+from keras.models import Sequential
+from keras.layers import LSTM, Dense
+import tensorflow as tf
 
 import io
 
@@ -159,3 +163,61 @@ def build_cons_ghi_scatter():
 
     figure.update_layout(width=1000)
     figure.write_image(const.PATH_IMG + 'cons_ghi_scatter.svg')
+
+
+df_p1 = None
+df_p2 = None
+
+train_data = None
+x_train = None
+y_train = None
+
+model = None
+
+
+#Разделение датасета на 2 части
+def split_df():
+    global df_p1
+    global df_p2
+
+    df['month'] = df.index.month
+
+    df_p1 = df[df['month'].isin(range(1, 12))]
+    df_p2 = df[df['month'] == 12]
+
+
+# Разделение датасета на тренировачные и тестирующие данные
+def split_train_test():
+    global df_p1
+    global x_train, y_train, train_data
+
+    df_p1 = df_p1.reset_index(drop=True)
+
+    train_data, test_data = train_test_split(df_p1, test_size=0.2, random_state=42)
+
+    x_train = train_data.drop('Energy delta[Wh]', axis=1).values.reshape(-1, 1, 14)
+    x_test = test_data.drop('Energy delta[Wh]', axis=1).values.reshape(-1, 1, 14)
+    y_train = train_data['Energy delta[Wh]'].values.reshape(-1, 1)
+    y_test = test_data['Energy delta[Wh]'].values.reshape(-1, 1)
+
+    print("x shape" + str(x_train.shape))
+    print("y shape" + str(y_train.shape))
+
+
+# Создание LSTM модели
+def make_lstm():
+    global model
+    model = Sequential()
+    model.add(LSTM(32, input_shape=(1, 14)))
+    model.add(Dense(64, activation='relu'))
+    model.add(Dense(1, activation='linear'))
+    model.compile(loss='mean_squared_error', optimizer='adam')
+
+    with open(const.PATH_TXT + 'lstm_model.txt', 'w',
+              encoding='utf-8') as file:
+        model.summary(print_fn=lambda x: file.write(x + '\n'))
+
+
+# Обучение модели
+def train_model():
+    model.fit(x_train, y_train, epochs=20, verbose=0)

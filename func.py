@@ -156,7 +156,7 @@ def build_ghi_box():
 
 # Построение графика зависимости потребления электроэнергии от глобального горизонтального излучения
 def build_cons_ghi_scatter():
-    figure = px.scatter(df_grouped,
+    figure = px.bar(df_grouped,
                         x='GHI',
                         y='Energy delta[Wh]',
                         title='Зависимость потребления электроэнергии от глобального горизонтального излучения')
@@ -169,8 +169,12 @@ df_p1 = None
 df_p2 = None
 
 train_data = None
+
 x_train = None
 y_train = None
+
+x_test = None
+y_test = None
 
 model = None
 
@@ -185,11 +189,14 @@ def split_df():
     df_p1 = df[df['month'].isin(range(1, 12))]
     df_p2 = df[df['month'] == 12]
 
+    df_p2.to_csv(const.PATH_CSV + 'december_true.csv', index=False)
+
 
 # Разделение датасета на тренировачные и тестирующие данные
 def split_train_test():
     global df_p1
     global x_train, y_train, train_data
+    global x_test, y_test
 
     df_p1 = df_p1.reset_index(drop=True)
 
@@ -200,15 +207,12 @@ def split_train_test():
     y_train = train_data['Energy delta[Wh]'].values.reshape(-1, 1)
     y_test = test_data['Energy delta[Wh]'].values.reshape(-1, 1)
 
-    print("x shape" + str(x_train.shape))
-    print("y shape" + str(y_train.shape))
-
 
 # Создание LSTM модели
 def make_lstm():
     global model
     model = Sequential()
-    model.add(LSTM(32, input_shape=(1, 14)))
+    model.add(LSTM(128, input_shape=(1, 14)))
     model.add(Dense(64, activation='relu'))
     model.add(Dense(1, activation='linear'))
     model.compile(loss='mean_squared_error', optimizer='adam')
@@ -220,4 +224,67 @@ def make_lstm():
 
 # Обучение модели
 def train_model():
-    model.fit(x_train, y_train, epochs=20, verbose=0)
+    model.fit(x_train, y_train, epochs=80, verbose=0)
+
+
+predict = None
+
+
+# Прогноз
+def predict_december():
+    global df_p2, model, x_test, predict
+
+    df_p2 = df_p2.reset_index(drop=True)
+
+    predict = model.predict(x_test)
+
+    december_src = df_p2[const.COLUMNS].values.reshape(-1, 1, 14)
+    december_predicts = model.predict(december_src)
+    df_p2["Energy delta[Wh]"] = december_predicts.flatten()
+    df_p2.to_csv(const.PATH_CSV + "december_predict.csv", index=False)
+
+
+december_true = None
+december_predict = None
+
+
+# Запись результатов прогноза в файл
+def write_results():
+    global december_true, december_predict
+    december_true = pd.read_csv(const.PATH_CSV + 'december_true.csv')
+    december_predict = pd.read_csv(const.PATH_CSV + 'december_predict.csv')
+
+    with open(const.PATH_TXT + 'december_true.txt', 'w',
+              encoding='utf-8') as file:
+        file.write(december_true.to_string())
+
+    with open(const.PATH_TXT + 'december_predict.txt', 'w',
+              encoding='utf-8') as file:
+        file.write(december_predict.to_string())
+
+
+# Рассчёт и запись метрик работы модели в файл
+def calc_metrics():
+    global december_true, december_predict
+    global y_test, predict
+
+    mapedf = np.mean(np.abs((december_true['Energy delta[Wh]'] - december_predict['Energy delta[Wh]']) / december_true['Energy delta[Wh]'])) * 100
+    mape = np.mean(np.abs(y_test - predict) / np.maximum(y_test, 1)) * 100
+    mae = mean_absolute_error(y_test, predict)
+    mse = mean_squared_error(y_test, predict)
+    rmse = np.sqrt(mse)
+    r2 = r2_score(y_test, predict)
+
+    with open(const.PATH_TXT + 'model_result.txt', 'w',
+              encoding='utf-8') as file:
+        file.write('Метрики работы модели:\n'
+                   '----------------------------\n'
+                   'Model Percentage Mean Absolute Error: ' + str(mape) + '\n'
+                   'Mean Absolute Error: ' + str(mae) + '\n'
+                   'Mean Squared Error: ' + str(mse) + '\n'
+                   'Root Mean Squared Error: ' + str(rmse) + '\n'
+                   'R^2: ' + str(r2) + '\n'
+                   'Percentage Mean Absolute Error: ' + str(mapedf) + '\n'
+                   '----------------------------\n')
+
+

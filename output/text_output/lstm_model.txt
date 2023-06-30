@@ -2,14 +2,14 @@ Model: "sequential"
 _________________________________________________________________
  Layer (type)                Output Shape              Param #   
 =================================================================
- lstm (LSTM)                 (None, 32)                6016      
+ lstm (LSTM)                 (None, 128)               73216     
                                                                  
- dense (Dense)               (None, 64)                2112      
+ dense (Dense)               (None, 64)                8256      
                                                                  
  dense_1 (Dense)             (None, 1)                 65        
                                                                  
 =================================================================
-Total params: 8,193
-Trainable params: 8,193
+Total params: 81,537
+Trainable params: 81,537
 Non-trainable params: 0
 _________________________________________________________________

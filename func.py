@@ -4,12 +4,15 @@ import datetime as dt
 
 import plotly.express as px
 import plotly.figure_factory as ff
+from pandas import Timestamp
 
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 from keras.models import Sequential
 from keras.layers import LSTM, Dense
 import tensorflow as tf
+
+import xgboost as xgb
 
 import io
 
@@ -165,10 +168,13 @@ def build_cons_ghi_scatter():
     figure.write_image(const.PATH_IMG + 'cons_ghi_scatter.svg')
 
 
+# Переменные для записи двух частей датасета
 df_p1 = None
 df_p2 = None
 
+# Переменные для записи обучающей и тестирующей частей
 train_data = None
+test_data = None
 
 x_train = None
 y_train = None
@@ -176,18 +182,30 @@ y_train = None
 x_test = None
 y_test = None
 
+# Переменная для записи модели
 model = None
 
+# Переменная для записи прогноза на сутки
+tmp_df = None
 
 #Разделение датасета на 2 части
 def split_df():
     global df_p1
     global df_p2
+    global tmp_df
+
+    tmp_df = pd.read_csv('./res/solar_weather.csv')
+    tmp_df = tmp_df.drop(['month', 'hour'], axis=1)
+    tmp_df['Time'] = pd.to_datetime(tmp_df['Time'])
 
     df['month'] = df.index.month
 
     df_p1 = df[df['month'].isin(range(1, 12))]
-    df_p2 = df[df['month'] == 12]
+    tmp_df.drop(tmp_df.index[96:196776], inplace=True)
+    tmp_df = tmp_df.set_index('Time')
+    df_p2 = tmp_df
+
+    df_p2['month'] = tmp_df.index.month
 
     df_p2.to_csv(const.PATH_CSV + 'december_true.csv', index=False)
 
@@ -195,12 +213,12 @@ def split_df():
 # Разделение датасета на тренировачные и тестирующие данные
 def split_train_test():
     global df_p1
-    global x_train, y_train, train_data
+    global x_train, y_train, train_data, test_data
     global x_test, y_test
 
     df_p1 = df_p1.reset_index(drop=True)
 
-    train_data, test_data = train_test_split(df_p1, test_size=0.2, random_state=42)
+    train_data, test_data = train_test_split(df_p1, test_size=0.2)
 
     x_train = train_data.drop('Energy delta[Wh]', axis=1).values.reshape(-1, 1, 14)
     x_test = test_data.drop('Energy delta[Wh]', axis=1).values.reshape(-1, 1, 14)
@@ -208,23 +226,35 @@ def split_train_test():
     y_test = test_data['Energy delta[Wh]'].values.reshape(-1, 1)
 
 
-# Создание LSTM модели
-def make_lstm():
-    global model
-    model = Sequential()
-    model.add(LSTM(128, input_shape=(1, 14)))
-    model.add(Dense(64, activation='relu'))
-    model.add(Dense(1, activation='linear'))
-    model.compile(loss='mean_squared_error', optimizer='adam')
+# Переменная для хранения прогноза модели
+xgb_preds = None
 
-    with open(const.PATH_TXT + 'lstm_model.txt', 'w',
-              encoding='utf-8') as file:
-        model.summary(print_fn=lambda x: file.write(x + '\n'))
+
+# Создание XGBoost модели
+def make_model():
+    global model, xgb_preds
+    global train_data, test_data
+
+    features = const.COLUMNS
+    target = "Energy delta[Wh]"
+
+    model = xgb.XGBRegressor(
+        objective='reg:squarederror',
+        learning_rate=0.03,
+        max_depth=20,
+        subsample=0.9,
+        colsample_bytree=0.3,
+        n_estimators=1000,
+        random_state=42
+    )
+
+    model.fit(train_data[features], train_data[target])
+    xgb_preds = model.predict(tmp_df[features])
 
 
 # Обучение модели
 def train_model():
-    model.fit(x_train, y_train, epochs=80, verbose=0)
+    model.fit(x_train, y_train, epochs=10, verbose=1)
 
 
 predict = None
@@ -232,14 +262,11 @@ predict = None
 
 # Прогноз
 def predict_december():
-    global df_p2, model, x_test, predict
+    global df_p2, model, x_test, predict, test_data
 
     df_p2 = df_p2.reset_index(drop=True)
 
-    predict = model.predict(x_test)
-
-    december_src = df_p2[const.COLUMNS].values.reshape(-1, 1, 14)
-    december_predicts = model.predict(december_src)
+    december_predicts = model.predict(tmp_df[const.COLUMNS])
     df_p2["Energy delta[Wh]"] = december_predicts.flatten()
     df_p2.to_csv(const.PATH_CSV + "december_predict.csv", index=False)
 
@@ -266,14 +293,16 @@ def write_results():
 # Рассчёт и запись метрик работы модели в файл
 def calc_metrics():
     global december_true, december_predict
-    global y_test, predict
+    global y_test, predict, tmp_df
+
+    test = tmp_df['Energy delta[Wh]'].values.reshape(-1, 1)
 
     mapedf = np.mean(np.abs((december_true['Energy delta[Wh]'] - december_predict['Energy delta[Wh]']) / december_true['Energy delta[Wh]'])) * 100
-    mape = np.mean(np.abs(y_test - predict) / np.maximum(y_test, 1)) * 100
-    mae = mean_absolute_error(y_test, predict)
-    mse = mean_squared_error(y_test, predict)
+    mape = np.mean(np.abs(test - xgb_preds) / np.maximum(test, 1)) * 100
+    mae = mean_absolute_error(test, xgb_preds)
+    mse = mean_squared_error(test, xgb_preds)
     rmse = np.sqrt(mse)
-    r2 = r2_score(y_test, predict)
+    r2 = r2_score(test, xgb_preds)
 
     with open(const.PATH_TXT + 'model_result.txt', 'w',
               encoding='utf-8') as file:
@@ -286,5 +315,3 @@ def calc_metrics():
                    'R^2: ' + str(r2) + '\n'
                    'Percentage Mean Absolute Error: ' + str(mapedf) + '\n'
                    '----------------------------\n')
-
-

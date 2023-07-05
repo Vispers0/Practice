@@ -1,9 +1,9 @@
 Метрики работы модели:
 ----------------------------
-Model Percentage Mean Absolute Error: 2566.0878738303927
-Mean Absolute Error: 179.1006711097333
-Mean Squared Error: 120354.60301483057
-Root Mean Squared Error: 346.92160932238073
-R^2: 0.8959612349984294
+Model Percentage Mean Absolute Error: 1730.6440235539305
+Mean Absolute Error: 4.625712165143341
+Mean Squared Error: 58.69534915224876
+Root Mean Squared Error: 7.661289000700128
+R^2: 0.9620788947306718
 Percentage Mean Absolute Error: inf
 ----------------------------
